@@ -1,4 +1,4 @@
-package adventofcode.e1
+package adventofcode.day1
 
 import java.io.File
 import java.util.*
