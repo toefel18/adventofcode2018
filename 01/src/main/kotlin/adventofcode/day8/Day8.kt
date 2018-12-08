@@ -4,9 +4,9 @@ import java.io.File
 
 fun main(args: Array<String>) {
     val input: List<Int> = File(ClassLoader.getSystemResource("day-08-input.txt").file).readText().split(" ").map { it.toInt() }
-    val (tree, _) = buildTree(input)
-    println("part1 ${tree.sumMeta()}")
-    println("part2 ${tree.calcValue()}")
+    val tree = buildTreeIter(input.iterator())
+    println("part1 ${tree.sumMeta()}")   //part1 40309
+    println("part2 ${tree.calcValue()}") //part2 28779
 }
 
 data class Node(val children: List<Node>, val metadata: List<Int>) {
@@ -17,18 +17,8 @@ data class Node(val children: List<Node>, val metadata: List<Int>) {
         metadata.filter { it != 0 }.mapNotNull { children.getOrNull(it - 1) }.map { it.calcValue() }.sum()
 }
 
-fun buildTree(input: List<Int>): Pair<Node, Int> {
-    val (numChildren, numMetadata) = input
-    val children = mutableListOf<Node>()
-    var remainingInput = input.drop(2)
-    var totalCharsConsumed = 2
-
-    for (child in 0 until numChildren) {
-        val (node, charsConsumed) = buildTree(remainingInput)
-        children.add(node)
-        totalCharsConsumed += charsConsumed
-        remainingInput = remainingInput.drop(charsConsumed)
-    }
-
-    return Pair(Node(children, input.drop(totalCharsConsumed).take(numMetadata)), totalCharsConsumed + numMetadata)
+fun buildTreeIter(input: Iterator<Int>): Node {
+    val (numChildren, numMetadata) = listOf(input.next(), input.next())
+    val children = (0 until numChildren).map { buildTreeIter(input) }
+    return Node(children, (0 until numMetadata).map { input.next() })
 }
