@@ -2,18 +2,14 @@ package adventofcode.day9
 
 import java.io.File
 import java.util.*
-import kotlin.collections.ArrayList
 
 fun main(args: Array<String>) {
     val input = File(ClassLoader.getSystemResource("day-09-input.txt").file).readText().split(" ")
     val players = input[0].toInt()
     val lastMarble = input[6].toInt()
-    val slowGame = FastGame()
-    println("game with $players players and $lastMarble last marble; highscore = ${slowGame.play(players, lastMarble)}")
-
     val game = FastGame()
-    println("game with $players players and ${lastMarble * 100} last marble; highscore = ${game.play(players, lastMarble * 100)}")
-
+    println("game with $players players and ${lastMarble} last marble value; highscore = ${game.play(players, lastMarble)}")
+    println("game with $players players and ${lastMarble * 100} last marble value; highscore = ${game.play(players, lastMarble * 100)}")
 }
 
 fun Int.isMultipleOf(other: Int) = this % other == 0
@@ -21,54 +17,24 @@ fun SortedMap<Int, Player>.next(current: Int) = if (this.containsKey(current + 1
 class Player(val id: Int, var score: Long = 0)
 typealias Marble = Int
 
-class Game {
+class FastGame {
     fun play(playerCount: Int, lastMarble: Int): Long {
-        val circle = ArrayList<Marble>(lastMarble)
-        circle.add(0)
         val players = (1..playerCount).map { Pair(it, Player(it)) }.toMap().toSortedMap()
-        var currentMarbleIndex = 0
-        var currentPlayer = Player(0)
-        for (nextMarble in 1..lastMarble) {
+        var currentMarble: NodeRing = NodeRing.createNodeRingWith3Nodes()
+        var currentPlayer = players[2]!!
+        for (nextMarble in 3..lastMarble) {
             currentPlayer = players.next(currentPlayer.id)
             if (nextMarble.isMultipleOf(23)) {
                 currentPlayer.score += nextMarble
-                val (removedMarble, newIndex) = circle.circularRemoveCounterClockwise(currentMarbleIndex)
+                val (nextCurrent, removedMarble) = currentMarble.deleteMarble7Back()
                 currentPlayer.score += removedMarble
-                currentMarbleIndex = newIndex
+                currentMarble = nextCurrent
             } else {
-                currentMarbleIndex = circle.circularInsertClockwise(currentMarbleIndex, nextMarble)
+                currentMarble = currentMarble.addMarbleBetweenNextTwo(nextMarble)
             }
         }
         return players.map { it.value.score }.max()!!
     }
-}
-
-fun ArrayList<Marble>.circularRemoveCounterClockwise(currentMarbleIndex: Int): Pair<Marble, Int> {
-    var nextIndex = nextCounterClockwiseIndex(currentMarbleIndex, 7)
-    val removedMarble = this.removeAt(nextIndex)
-    if (nextIndex == this.size) nextIndex = 0
-    return Pair(removedMarble, nextIndex)
-}
-
-fun ArrayList<Marble>.circularInsertClockwise(currentMarbleIndex: Int, nextMarble: Marble): Int {
-    return if (this.size == 1) {
-        this.add(nextMarble)
-        1
-    } else {
-        val nextIndex = nextClockwiseIndex(currentMarbleIndex, 2)
-        this.add(nextIndex, nextMarble)
-        nextIndex
-    }
-}
-
-fun ArrayList<Marble>.nextClockwiseIndex(fromIndex: Int, offset: Int): Int {
-    val nextIndex = fromIndex + offset
-    return if (nextIndex > this.size) nextIndex % size else nextIndex
-}
-
-fun ArrayList<Marble>.nextCounterClockwiseIndex(fromIndex: Int, offset: Int): Int {
-    val nextIndex = fromIndex - offset
-    return if (nextIndex < 0) this.size + nextIndex else nextIndex
 }
 
 // basically a link list
@@ -110,25 +76,5 @@ data class NodeRing(val value: Marble, var next: NodeRing?, var previous: NodeRi
             node1.previous = node2
             return node0
         }
-    }
-}
-
-class FastGame {
-    fun play(playerCount: Int, lastMarble: Int): Long {
-        val players = (1..playerCount).map { Pair(it, Player(it)) }.toMap().toSortedMap()
-        var currentMarble: NodeRing = NodeRing.createNodeRingWith3Nodes()
-        var currentPlayer = players[2]!!
-        for (nextMarble in 3..lastMarble) {
-            currentPlayer = players.next(currentPlayer.id)
-            if (nextMarble.isMultipleOf(23)) {
-                currentPlayer.score += nextMarble
-                val (nextCurrent, removedMarble) = currentMarble.deleteMarble7Back()
-                currentPlayer.score += removedMarble
-                currentMarble = nextCurrent
-            } else {
-                currentMarble = currentMarble.addMarbleBetweenNextTwo(nextMarble)
-            }
-        }
-        return players.map { it.value.score }.max()!!
     }
 }
