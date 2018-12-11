@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 
 
 data class Point(val x: Int, val y: Int)
-data class PointWSize(val power: Long, val x: Int, val y: Int, val size: Int)
+data class PointPowerSize(val power: Long, val x: Int, val y: Int, val size: Int)
 
 fun main(args: Array<String>) {
     val gridSerialNumber = 7403
@@ -46,27 +46,27 @@ fun main(args: Array<String>) {
     println("took ${Duration.between(start, Instant.now()).seconds} seconds")
 }
 
-fun findGridWithMaxPowerForAllSizes(grid: List<List<Long>>): PointWSize {
+fun findGridWithMaxPowerForAllSizes(grid: List<List<Long>>): PointPowerSize {
     val executor = Executors.newFixedThreadPool(8)
     return (1..300)
-            .map { size -> executor.submit<PointWSize>{ findGridWithMaxPower(size, grid) }}
+            .map { size -> executor.submit<PointPowerSize>{ findGridWithMaxPower(size, grid) }}
             .map { it.get() }
             .maxBy { it.power }!!
 }
 
-fun findGridWithMaxPower(size: Int, grid: List<List<Long>>): PointWSize {
+fun findGridWithMaxPower(size: Int, grid: List<List<Long>>): PointPowerSize {
     println("started $size")
     var highestValue: Long = Long.MIN_VALUE
-    var smallestPointWS = PointWSize(Long.MIN_VALUE, -1, -1, 0)
+    var highestPowerCoord = PointPowerSize(Long.MIN_VALUE, -1, -1, 0)
     for (x in 0..(grid.size - size - 1)) {
         for (y in 0..(grid[x].size - size - 1)) {
             val power = (x until (x + size)).flatMap { xCoord -> (y until (y + size)).map { yCoord -> grid[xCoord][yCoord] } }.sum()
             if (power > highestValue) {
                 highestValue = power
-                smallestPointWS = PointWSize(power, x + 1, y + 1, size)
+                highestPowerCoord = PointPowerSize(power, x + 1, y + 1, size)
             }
         }
     }
-    println("finished $size = $smallestPointWS")
-    return smallestPointWS
+    println("finished $size = $highestPowerCoord")
+    return highestPowerCoord
 }
