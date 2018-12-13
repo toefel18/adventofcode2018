@@ -33,3 +33,8 @@ dependencies {
 
 // Define the main class for the application
 mainClassName = 'adventofcode.e1.AppKt'
+
+task runExample(type: JavaExec) {
+    main = 'adventofcode.day13.Day13'
+    classpath = sourceSets.main.runtimeClasspath
+}
