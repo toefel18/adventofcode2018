@@ -17,7 +17,7 @@ val ANSI_CYAN = "\u001B[36m"
 val ANSI_WHITE = "\u001B[37m"
 
 /**
- * This looks like a mess because there are two ways of calculating the next move, still needs cleanup!
+ * This looks like a mess because there are two ways of calculating the nextIndex move, still needs cleanup!
  */
 
 

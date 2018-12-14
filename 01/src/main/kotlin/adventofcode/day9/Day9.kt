@@ -41,7 +41,7 @@ class FastGame {
 data class NodeRing(val value: Marble, var next: NodeRing?, var previous: NodeRing?) {
     fun addMarbleBetweenNextTwo(value: Marble): NodeRing = next!!.insert(value)
 
-    // returns the next current node and the marble
+    // returns the nextIndex current node and the marble
     fun deleteMarble7Back(): Pair<NodeRing, Marble> {
         var fastNode: NodeRing = this
         for (i in 0 until 7) fastNode = fastNode.previous!!
