@@ -34,11 +34,9 @@ fun main(args: Array<String>) {
         val currentScore2 = scores[currentRecipe2].toString().toInt()
         val newScore = currentScore1 + currentScore2
         scores.append(newScore)
-        if (scores.length > 6) {
-            if (scores.indexOf(sequence, scores.length - 10) > 0) {
-                println(scores.indexOf(sequence))
-                return
-            }
+        if (scores.length > 6 && scores.indexOf(sequence, scores.length - 10) > 0) {
+            println(scores.indexOf(sequence))
+            return
         }
         currentRecipe1 = scores.nextIndex(currentRecipe1, 1 + currentScore1)
         currentRecipe2 = scores.nextIndex(currentRecipe2, 1 + currentScore2)

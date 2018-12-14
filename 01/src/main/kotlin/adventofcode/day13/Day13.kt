@@ -16,11 +16,6 @@ val ANSI_PURPLE = "\u001B[35m"
 val ANSI_CYAN = "\u001B[36m"
 val ANSI_WHITE = "\u001B[37m"
 
-/**
- * This looks like a mess because there are two ways of calculating the nextIndex move, still needs cleanup!
- */
-
-
 enum class Direction(val c: Char, val offset: Point) {
     // order matters
     LEFT('<', Point(0, -1)),
@@ -29,79 +24,13 @@ enum class Direction(val c: Char, val offset: Point) {
     BOTTOM('v', Point(1, 0));
 
     override fun toString(): String = "$c"
-
-    companion object {
-        fun from(from: Point, to: Point): Direction = when {
-            from.x > to.x -> Direction.BOTTOM
-            from.x < to.x -> Direction.TOP
-            from.y > to.y -> Direction.RIGHT
-            from.y < to.y -> Direction.LEFT
-            else -> throw IllegalStateException("Invalid direction")
-        }
-    }
 }
 
 data class Point(val x: Int, val y: Int) {
     operator fun plus(other: Point) = Point(x + other.x, y + other.y)
 }
 
-abstract class Infra(val pos: Point, val char: Char) {
-    abstract fun calculateNextDirection(cart: Cart): Direction
-}
-
-class HRail(pos: Point) : Infra(pos, '-') {
-    override fun calculateNextDirection(cart: Cart): Direction {
-        if (!(cart.direction == Direction.LEFT || cart.direction == Direction.RIGHT)) throw IllegalStateException("Illegal direction, expecting horizontal but was ${cart.direction} at $pos")
-        return cart.direction
-    }
-}
-
-class VRail(pos: Point) : Infra(pos, '|') {
-    override fun calculateNextDirection(cart: Cart): Direction {
-        if (!(cart.direction == Direction.TOP || cart.direction == Direction.BOTTOM)) throw IllegalStateException("Illegal direction, expecting vertical but was ${cart.direction} at $pos")
-        return cart.direction
-    }
-}
-
-class Turn(pos: Point, char: Char) : Infra(pos, char) {
-    override fun calculateNextDirection(cart: Cart): Direction {
-        val from = Direction.from(cart.pos, this.pos)
-        return when {
-            char == '/' && from == Direction.BOTTOM -> Direction.RIGHT
-            char == '/' && from == Direction.RIGHT -> Direction.BOTTOM
-            char == '/' && from == Direction.LEFT -> Direction.TOP
-            char == '/' && from == Direction.TOP -> Direction.LEFT
-            char == '\\' && from == Direction.BOTTOM -> Direction.LEFT
-            char == '\\' && from == Direction.RIGHT -> Direction.TOP
-            char == '\\' && from == Direction.LEFT -> Direction.BOTTOM
-            char == '\\' && from == Direction.TOP -> Direction.RIGHT
-            else -> throw IllegalStateException("Unknown turn $pos")
-        }
-    }
-}
-
-class Intersection(pos: Point) : Infra(pos, '+') {
-    val directions = (Direction.values() + Direction.values()).toList()
-
-    override fun calculateNextDirection(cart: Cart): Direction {
-        val from = Direction.from(cart.pos, pos)
-        val untilReachesNextTurn = when (cart.nextTurn.first) {
-            "L" -> 1
-            "S" -> 2
-            "R" -> 3
-            else -> throw IllegalStateException("only L S and R are supported $pos")
-        }
-        cart.rotateTurn()
-        val x = directions.dropWhile { it != from }.drop(untilReachesNextTurn).first()
-        return x
-    }
-}
-
-class DeadEnd(pos: Point) : Infra(pos, ' ') {
-    override fun calculateNextDirection(cart: Cart): Direction {
-        throw IllegalStateException("Reached dead end $pos")
-    }
-}
+data class Infra(val pos: Point, val char: Char)
 
 class Cart(
         var pos: Point,
@@ -111,118 +40,76 @@ class Cart(
 
     fun rotateTurn() = nextTurn.addLast(nextTurn.pollFirst())
 
-    // Probably a better solution
-//    fun move(infra: List<List<Infra>>) {
-//        val nextPos = pos + direction.offset
-//        val node = infra[nextPos.x][nextPos.y]
-//        val nextDirection = when {
-//            node.char == '\\' && direction == Direction.LEFT -> Direction.TOP
-//            node.char == '\\' && direction == Direction.TOP -> Direction.LEFT
-//            node.char == '\\' && direction == Direction.BOTTOM -> Direction.RIGHT
-//            node.char == '\\' && direction == Direction.RIGHT -> Direction.BOTTOM
-//            node.char == '/' && direction == Direction.LEFT -> Direction.BOTTOM
-//            node.char == '/' && direction == Direction.TOP -> Direction.RIGHT
-//            node.char == '/' && direction == Direction.BOTTOM -> Direction.LEFT
-//            node.char == '/' && direction == Direction.RIGHT -> Direction.TOP
-//            node.char == '|' || node.char == '-' -> direction
-//            node.char == '+' -> {
-//                val turn = nextTurn.first
-//                rotateTurn()
-//                when {
-//                    direction == Direction.RIGHT && turn == "L" -> Direction.TOP
-//                    direction == Direction.RIGHT && turn == "S" -> Direction.RIGHT
-//                    direction == Direction.RIGHT && turn == "R" -> Direction.BOTTOM
-//
-//                    direction == Direction.LEFT && turn == "L" -> Direction.BOTTOM
-//                    direction == Direction.LEFT && turn == "S" -> Direction.LEFT
-//                    direction == Direction.LEFT && turn == "R" -> Direction.TOP
-//
-//                    direction == Direction.BOTTOM && turn == "L" -> Direction.RIGHT
-//                    direction == Direction.BOTTOM && turn == "S" -> Direction.BOTTOM
-//                    direction == Direction.BOTTOM && turn == "R" -> Direction.LEFT
-//
-//                    direction == Direction.TOP && turn == "L" -> Direction.LEFT
-//                    direction == Direction.TOP && turn == "S" -> Direction.TOP
-//                    direction == Direction.TOP && turn == "R" -> Direction.RIGHT
-//                    else -> throw IllegalStateException()
-//                }
-//            }
-//            else -> throw IllegalStateException()
-//        }
-//        this.pos = nextPos
-//        this.direction = nextDirection
-//    }
+    // Probably a better, more concise solution
+    fun move(infra: List<List<Infra>>): Pair<Point, Direction> {
+        val nextPos = pos + direction.offset
+        val node = infra[nextPos.x][nextPos.y]
+        val nextDirection = when {
+            node.char == '\\' && direction == Direction.LEFT -> Direction.TOP
+            node.char == '\\' && direction == Direction.TOP -> Direction.LEFT
+            node.char == '\\' && direction == Direction.BOTTOM -> Direction.RIGHT
+            node.char == '\\' && direction == Direction.RIGHT -> Direction.BOTTOM
+            node.char == '/' && direction == Direction.LEFT -> Direction.BOTTOM
+            node.char == '/' && direction == Direction.TOP -> Direction.RIGHT
+            node.char == '/' && direction == Direction.BOTTOM -> Direction.LEFT
+            node.char == '/' && direction == Direction.RIGHT -> Direction.TOP
+            node.char == '|' || node.char == '-' -> direction
+            node.char == '+' -> {
+                val turn = nextTurn.first
+                rotateTurn()
+                when {
+                    direction == Direction.RIGHT && turn == "L" -> Direction.TOP
+                    direction == Direction.RIGHT && turn == "S" -> Direction.RIGHT
+                    direction == Direction.RIGHT && turn == "R" -> Direction.BOTTOM
 
+                    direction == Direction.LEFT && turn == "L" -> Direction.BOTTOM
+                    direction == Direction.LEFT && turn == "S" -> Direction.LEFT
+                    direction == Direction.LEFT && turn == "R" -> Direction.TOP
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+                    direction == Direction.BOTTOM && turn == "L" -> Direction.RIGHT
+                    direction == Direction.BOTTOM && turn == "S" -> Direction.BOTTOM
+                    direction == Direction.BOTTOM && turn == "R" -> Direction.LEFT
 
-        other as Cart
-
-        if (pos != other.pos) return false
-        if (direction != other.direction) return false
-
-        return true
+                    direction == Direction.TOP && turn == "L" -> Direction.LEFT
+                    direction == Direction.TOP && turn == "S" -> Direction.TOP
+                    direction == Direction.TOP && turn == "R" -> Direction.RIGHT
+                    else -> throw IllegalStateException()
+                }
+            }
+            else -> throw IllegalStateException("${node.char}")
+        }
+        return Pair(nextPos, nextDirection)
     }
 
-    override fun hashCode(): Int {
-        var result = pos.hashCode()
-        result = 31 * result + direction.hashCode()
-        return result
-    }
 }
 
 class Track(val infra: List<List<Infra>>, var carts: MutableList<Cart>) {
 
-    fun tickPart1() {
+    // input boolean is for part 2
+    fun tick(preventCrashesBeforehand: Boolean) {
         val cartsInOrder = carts
                 .filter { !it.crashed }
                 .sortedWith(compareBy({ it.pos.x }, { it.pos.y }))
 
         for (cart in cartsInOrder) {
-            val newPos = cart.pos + cart.direction.offset
-            val nextInfra = infra[newPos.x][newPos.y]
-            cart.direction = nextInfra.calculateNextDirection(cart)
-            cart.pos = newPos
+            if (cart.crashed) continue
+            val (newPos, newDirection) = cart.move(infra)
 
-            val cartsByPos = (carts).groupBy { it.pos }
+            if (preventCrashesBeforehand && carts.groupBy { it.pos }[newPos] != null) {
+                cart.crashed = true
+                carts.groupBy { it.pos }[newPos]!!.forEach { it.crashed = true }
+                carts.removeIf { it.crashed }
+                continue
+            }
+
+            cart.pos = newPos
+            cart.direction = newDirection
+
+            val cartsByPos = carts.groupBy { it.pos }
             if (cartsByPos[cart.pos]!!.size > 1) {
                 cartsByPos[cart.pos]!!.forEach { it.crashed = true }
                 println("Collision at ${cart.pos.y},${cart.pos.x}")
             }
-        }
-    }
-
-
-    fun tickPart2() {
-        val cartsInOrder = carts
-                .filter { !it.crashed }
-                .sortedWith(compareBy({ it.pos.x }, { it.pos.y }))
-
-        for (cart in cartsInOrder) {
-            if (!carts.contains(cart)) continue
-            val newPos = cart.pos + cart.direction.offset
-            val nextInfra = infra[newPos.x][newPos.y]
-            val wouldBeCrash = carts.find { it.pos == newPos }
-
-            if (wouldBeCrash != null) {
-                carts.remove(cart)
-                carts.remove(wouldBeCrash)
-                continue
-            }
-
-            cart.direction = nextInfra.calculateNextDirection(cart)
-            cart.pos = newPos
-
-            val cartsByPos = (carts).groupBy { it.pos }
-            if (cartsByPos[cart.pos]!!.size > 1) {
-                cartsByPos[cart.pos]!!.forEach { it.crashed = true }
-                println("Collision at ${cart.pos.y},${cart.pos.x}  remaining ${carts.filter { !it.crashed }.size}")
-            }
-        }
-        if (carts.filter { !it.crashed }.size == 1) {
-            println(carts.filter { !it.crashed }.map { "END RESULT ${it.pos.y},${it.pos.x}" })
         }
     }
 
@@ -236,7 +123,7 @@ class Track(val infra: List<List<Infra>>, var carts: MutableList<Cart>) {
                 when {
                     cartsAtPosition == null -> print(infra.char)
                     cartsAtPosition.first().crashed -> print("${ANSI_RED}X$ANSI_RESET")
-                    else -> print("${ANSI_YELLOW}${cartsAtPosition.first().direction}$ANSI_RESET")
+                    else -> print("${ANSI_RED}${cartsAtPosition.first().direction}$ANSI_RESET")
                 }
             }
             println()
@@ -251,19 +138,19 @@ fun main(args: Array<String>) {
     val carts = mutableListOf<Cart>()
     val trackInfra = parseInput(input, carts)
     val track = Track(trackInfra, carts)
-    while (track.carts.filter { !it.crashed }.size > 1) {
-        track.tickPart1()
+    track.print()
+    while (track.carts.count { !it.crashed } > 1) {
+        track.tick(preventCrashesBeforehand = false)
     }
 
+    // part 2
     val carts2 = mutableListOf<Cart>()
     val trackInfra2 = parseInput(input, carts2)
     val track2 = Track(trackInfra2, carts2)
-    while (track2.carts.filter { !it.crashed }.size > 1) {
-        track2.tickPart2()
+    while (track2.carts.size > 1) {
+        track2.tick(preventCrashesBeforehand = true)
     }
-
-    Thread.sleep(100)
-
+    println("Last remaining cart ${track2.carts.filter { !it.crashed }.map { "${it.pos.y},${it.pos.x}" }}")
 }
 
 private fun parseInput(input: List<CharArray>, carts: MutableList<Cart>): List<List<Infra>> {
@@ -271,28 +158,21 @@ private fun parseInput(input: List<CharArray>, carts: MutableList<Cart>): List<L
             .mapIndexed { x, row ->
                 row.mapIndexed { y, char ->
                     when (char) {
-                        '/', '\\' -> Turn(Point(x, y), char)
-                        '+' -> Intersection(Point(x, y))
-                        '-' -> HRail(Point(x, y))
-                        '|' -> VRail(Point(x, y))
                         '<' -> {
                             carts.add(Cart(Point(x, y), Direction.LEFT))
-                            HRail(Point(x, y))
                         }
                         '>' -> {
                             carts.add(Cart(Point(x, y), Direction.RIGHT))
-                            HRail(Point(x, y))
                         }
                         '^' -> {
                             carts.add(Cart(Point(x, y), Direction.TOP))
-                            VRail(Point(x, y))
                         }
                         'v' -> {
                             carts.add(Cart(Point(x, y), Direction.BOTTOM))
-                            VRail(Point(x, y))
                         }
-                        else -> DeadEnd(Point(x, y))
                     }
+                    val infraChar = if (char in listOf('^', 'v')) '|' else if (char in listOf('<', '>')) '-' else char
+                    Infra(Point(x, y), infraChar)
                 }
             }
 }
