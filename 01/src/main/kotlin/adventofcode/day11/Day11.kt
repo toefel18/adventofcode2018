@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
 
     for (x in 0..(grid.size - 3)) {
         for (y in 0..(grid[x].size - 3)) {
-            val power = (x..x + 2).flatMap { x -> (y..y + 2).map { y -> grid[x][y] } }.sum()
+            val power = (x..x + 2).flatMap { currentX -> (y..y + 2).map { currentY -> grid[currentX][currentY] } }.sum()
             if (power > highestValue) {
                 highestValue = power
                 coord = Point(x + 1, y + 1)
