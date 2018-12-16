@@ -22,7 +22,6 @@ enum class Direction(val offset: Point) {
     BOTTOM(Point(1, 0));
 }
 
-// types of players
 abstract class Creature(var pos: Point, val logo: Char, val attackPower: Int = 3, var health: Int = 200) {
     override fun toString() = "$logo"
     fun attack(enemyInRange: Creature) {
@@ -41,7 +40,6 @@ class Elf(pos: Point) : Creature(pos, 'E') {
     override fun enemy(): KClass<out Creature> = Goblin::class
 }
 
-// Types on map
 abstract class Spot(val pos: Point, val logo: Char) {
     override fun toString() = "$logo"
     abstract fun available(): Boolean
@@ -150,17 +148,10 @@ data class Path(val stepsTaken: List<Point>) {
 
 object Dijkstra {
     fun getPathByClosestTargetInReadingOrder(start: Point, targets: List<Point>, map: Map): Path? {
-        val time = System.currentTimeMillis()
-        try {
-            val paths = targets
-                    .mapNotNull { shortestPathInReadingOrder(start, it, map) }
-                    .sortedWith(compareBy({ it.stepsTaken.size }, { it.stepsTaken.last() }))
-
-//        println("winner $paths")
-            return paths.firstOrNull()
-        } finally {
-//            println("${System.currentTimeMillis() - time}")
-        }
+        val paths = targets
+                .mapNotNull { shortestPathInReadingOrder(start, it, map) }
+                .sortedWith(compareBy({ it.stepsTaken.size }, { it.stepsTaken.last() }))
+        return paths.firstOrNull()
     }
 
     fun shortestPathInReadingOrder(start: Point, target: Point, map: Map): Path? {
@@ -220,11 +211,11 @@ object Dijkstra {
 
 fun main(args: Array<String>) {
 //    playGame("day-15-test-input1-47-590-27730.txt", 27730) //this fails with 1 round difference
-    playGame("day-15-test-input2-37-982-36334.txt",36334)
-    playGame("day-15-test-input3-46-859-39514.txt",39514)
-    playGame("day-15-test-input4-35-793-27755.txt",27755)
-    playGame("day-15-test-input5-54-536-28944.txt",28944)
-    playGame("day-15-test-input6-20-937-18740.txt",18740)
+    playGame("day-15-test-input2-37-982-36334.txt", 36334)
+    playGame("day-15-test-input3-46-859-39514.txt", 39514)
+    playGame("day-15-test-input4-35-793-27755.txt", 27755)
+    playGame("day-15-test-input5-54-536-28944.txt", 28944)
+    playGame("day-15-test-input6-20-937-18740.txt", 18740)
 //    playGame("day-15-input.txt", 261855)
 }
 
