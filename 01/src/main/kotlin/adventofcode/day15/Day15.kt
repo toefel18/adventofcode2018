@@ -219,14 +219,13 @@ object Dijkstra {
 
 
 fun main(args: Array<String>) {
-//    playGame("day-15-test-input.txt", 28944)
-//    pathTest()
+//    playGame("day-15-test-input1-47-590-27730.txt", 27730) //this fails with 1 round difference
     playGame("day-15-test-input2-37-982-36334.txt",36334)
     playGame("day-15-test-input3-46-859-39514.txt",39514)
     playGame("day-15-test-input4-35-793-27755.txt",27755)
     playGame("day-15-test-input5-54-536-28944.txt",28944)
     playGame("day-15-test-input6-20-937-18740.txt",18740)
-    playGame("day-15-input.txt", 261855)
+//    playGame("day-15-input.txt", 261855)
 }
 
 private fun playGame(resourceName: String, expectedOutcome: Int) {
