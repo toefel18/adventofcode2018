@@ -67,12 +67,12 @@ class Map(val spots: List<List<Spot>>) {
         spots.forEach { row ->
             row.forEach { spot ->
                 run {
-//                    if (adjacentSpots.contains(spot)) {
+                    //                    if (adjacentSpots.contains(spot)) {
 //                        print("0")
 //                    } else if (adjacentSpots1.contains(spot)) {
 //                        print("X")
 //                    } else {
-                        print(spot.toString())
+                    print(spot.toString())
 //                    }
                 }
             }; println()
@@ -107,8 +107,11 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
     fun tick() {
         round++
 
-        for (creature in creatures.toList()) {
+        val ordered = creaturesByPositionSorted()
+
+        for ((_, creature) in ordered) {
             if (creature.dead()) continue
+            if (!enemiesAlive()) break
             val creaturesByPosSorted = creaturesByPositionSorted()
             var enemyInRange: Creature? = selectWeakest(enemiesInRange(creature, creaturesByPosSorted))
             if (enemyInRange != null) {
@@ -116,7 +119,7 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
                 removeIfDead(creature)
                 removeIfDead(enemyInRange)
             } else {
-                val nextPos = calculateNextPos(creature)
+                val nextPos = if (creature is Elf) calculateNextPos(creature) else calculateNextPos(creature)
                 if (nextPos != null) {
                     // do the move
                     (map.spotAt(creature.pos) as Floor).creature = null
@@ -134,21 +137,22 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
         }
     }
 
-    fun removeIfDead(creature:Creature) {
+    fun removeIfDead(creature: Creature) {
         if (creature.dead()) {
             (map.spotAt(creature.pos) as Floor).creature = null
             creatures.remove(creature)
         }
     }
 
-    private fun calculateNextPos(creature: Creature):Point? {
-        val adjacentSpotsEnemies = adjacentSpots(type = creature.enemy())
-        val paths = DijkstraShortestPath.getPaths(creature.pos, adjacentSpotsEnemies.map { it.pos }, map)
-        val nextPos = paths
-                .map { creature.pos + it.stepsTaken.first().offset } // take points after first offsets
-                .sortedWith(Point.comparator) // reading order
-                .firstOrNull()
-        return nextPos
+    private fun calculateNextPos(creature: Creature): Point? {
+        val adjacentSpotsEnemies: List<Spot> = adjacentSpots(creature.enemy())
+        val path = Dijkstra.getPathByClosestTargetInReadingOrder(creature.pos, adjacentSpotsEnemies.map { it.pos }, map)
+
+        return if (path == null) {
+            creature.pos
+        } else {
+            creature.pos + path.stepsTaken.first().offset
+        }
     }
 
     fun print() {
@@ -158,77 +162,104 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
     }
 }
 
-data class Path(val pos: Point, val stepsTaken: List<Direction>)
+data class Path(val finalPos: Point, val stepsTaken: List<Direction>)
 
-object DijkstraShortestPath {
-    fun getPaths(start: Point, targets: List<Point>, map: Map): List<Path> {
+object Dijkstra {
+    fun getPathByClosestTargetInReadingOrder(start: Point, targets: List<Point>, map: Map): Path? {
         val time = System.currentTimeMillis()
-        println("started")
         try {
             val paths = targets
-                    .flatMap { calculateShortestPaths(start, it, map) }
-                    .sortedBy { it.stepsTaken.size }
+                    .mapNotNull { shortestPathInReadingOrder(start, it, map) }
+                    .sortedWith(compareBy({it.stepsTaken.size}, { it.finalPos }))
 
-            println("${paths.size}")
-            if (!paths.isEmpty()) {
-                val sizeShortest = paths.first().stepsTaken.size
-                return paths.takeWhile { it.stepsTaken.size == sizeShortest }
-            }
-            return emptyList()
+//        println("winner $paths")
+            return paths.firstOrNull()
         } finally {
-            println("${System.currentTimeMillis() - time}")
+//            println("${System.currentTimeMillis() - time}")
         }
     }
 
-    fun calculateShortestPaths(start: Point, target: Point, map: Map): List<Path> {
+    fun shortestPathInReadingOrder(start: Point, target: Point, map: Map): Path? {
 
-            // maps the visited points and what the shortestPath to that point was
-            val visited = mutableMapOf(start to 0)
-            val queue = LinkedList<Path>()
-            queue.addAll(Direction.values().map { Path(start + it.offset, listOf(it)) }.filter { map.spotAt(it.pos).available() })
-            queue.forEach { visited[it.pos] = 1 }
+        // maps the visited points and what the shortestPath to that point was
+        // maps visited points to shortest distance
+        val visited = mutableMapOf(start to 0)
+        val queue = PriorityQueue<Path>(compareBy { it.stepsTaken.size }) //val queue = PriorityQueue<Path>(compareBy { abs(target.x - it.finalPos.x ) + abs(target.y-it.finalPos.y)})
+        queue.addAll(Direction.values().map { Path(start + it.offset, listOf(it)) }.filter { map.spotAt(it.finalPos).available() })
+        queue.forEach { visited[it.finalPos] = 1 }
 
-            val results: MutableList<Path> = mutableListOf()
-            var itemsAfterShortest = 0
-            val startz =  System.currentTimeMillis()
-            while (!queue.isEmpty()) {
-                val currentPath = queue.pollFirst()
-                if (currentPath.pos == target) {
-                    results.add(currentPath)
-                    continue
-                }
-                if (currentPath.stepsTaken.size > results.firstOrNull()?.stepsTaken?.size ?: Integer.MAX_VALUE) {
-                    itemsAfterShortest++
-                }
-                if (itemsAfterShortest > 20) {
+        val candiateResults: MutableList<Path> = mutableListOf()
+        while (!queue.isEmpty()) {
+            val currentPath = queue.poll()
+            if (currentPath.finalPos == target) {
+                candiateResults.add(currentPath)
+                continue
+            }
+
+            if (candiateResults.isNotEmpty()) {
+                if (currentPath.stepsTaken.size > candiateResults.first().stepsTaken.size) {
                     break
                 }
-
-                // calculate new directions
-                val newPaths = Direction.values()
-                        // Pair because we need to carry 2 values
-                        .map { Pair(currentPath.pos + it.offset, it) }
-                        // skip if the next node is already visited by a SHORTER path, if the visited path is the
-                        // same length or longer, keep going
-//                    .map { println(visited.getOrDefault(it.first, currentPath.stepsTaken.size) >= currentPath.stepsTaken.size); it }
-                        .filter { visited.getOrDefault(it.first, currentPath.stepsTaken.size) >= currentPath.stepsTaken.size }
-                        // only take spots if available
-                        .filter { map.spotAt(it.first).available() }
-                        .map { Path(it.first, currentPath.stepsTaken + it.second) }
-
-                // add new directions to visited with the number of steps it took.
-                // this should not overwrite smaller entries because of the filter in the step above
-                newPaths.forEach { visited[it.pos] = it.stepsTaken.size }
-
-                queue.addAll(newPaths)
             }
-            println("${System.currentTimeMillis() - startz}")
-            return results.sortedBy { it.stepsTaken.size }
+//
+//            if (candiateResults.size > 10) {
+//                break
+//            }
+
+            // calculate new directions
+            val newPaths = Direction.values()
+                    // Pair because we need to carry 2 values
+                    .map { Pair(currentPath.finalPos + it.offset, it) }
+//                    .map { println(notVisitedOrSameDistance(currentPath, it.first, visited) ); it }
+//                    .filter { visited.containsKey(it.first) }
+                    .filter { notVisitedOrSameDistance(currentPath, it.first, visited) }
+                    .filter { map.spotAt(it.first).available() }
+                    .map { Path(it.first, currentPath.stepsTaken + it.second) }
+
+            // add new directions to visited with the number of steps it took.
+            // all distances should be the same or smaller (due to the filter notVisitedOrSameDistance)
+            newPaths.forEach { visited[it.finalPos] = it.stepsTaken.size }
+            println("${visited.size}")
+            queue.addAll(newPaths)
+        }
+
+        val shortestPathSize = candiateResults.map { it.stepsTaken.size }.min()
+        println("$start $target ${candiateResults.size}")
+        val actualResults = candiateResults
+                .filter { it.stepsTaken.size == shortestPathSize } //select the shortest
+                .sortedBy { start + it.stepsTaken.first().offset } // sort by reading order
+        actualResults.forEach { println("   $it") }
+        println("visited ${visited.keys.size}")
+//        println("Selected-to-point ${actualResults.firstOrNull()}")
+
+        return actualResults.firstOrNull()
+    }
+
+    private fun notVisitedOrSameDistance(path: Path, point: Point, visited: MutableMap<Point, Int>): Boolean {
+        val distance = visited[point]
+        if (distance == null) {
+            return true // not visited
+        } else {
+            val newPathLength = path.stepsTaken.size + 1 //+1 to reach the current point
+            return newPathLength == distance
+        }
     }
 }
 
+
 fun main(args: Array<String>) {
-    val input: List<List<Spot>> = File(ClassLoader.getSystemResource("day-15-input.txt").file)
+//    playGame("day-15-test-input.txt", 28944)
+    pathTest()
+//    playGame("day-15-test-input2-37-982-36334.txt",36334)
+//    playGame("day-15-test-input3-46-859-39514.txt",39514)
+//    playGame("day-15-test-input4-35-793-27755.txt",27755)
+//    playGame("day-15-test-input5-54-536-28944.txt",28944)
+//    playGame("day-15-test-input6-20-937-18740.txt",18740)
+//    playGame("day-15-input.txt",0)
+}
+
+private fun playGame(resourceName: String, expectedOutcome: Int) {
+    val input: List<List<Spot>> = File(ClassLoader.getSystemResource(resourceName).file)
             .readLines()
             .mapIndexed { x, row ->
                 row.mapIndexed { y, char ->
@@ -248,16 +279,51 @@ fun main(args: Array<String>) {
 
     val map = Map(input)
     val game = Game(map, creatures)
-    game.print()
-    while(game.enemiesAlive()) {
+    while (game.enemiesAlive()) {
         game.tick()
         game.print()
+//        println("round ${game.round}")
+//        if (game.round > 1000) {
+//            game.print()
+//            break
+//        }
     }
+    game.round--
     val totalHealth = creatures.filter { !it.dead() }.map { it.health }.sum()
-    println("score = ${game.round} * ${totalHealth -3} = ${game.round * (totalHealth-3)}")
+    val score = totalHealth * game.round
+    game.print()
+    println("$resourceName score = $score  (succeeded = ${score == expectedOutcome})   rounds=${game.round} totalHealth=${totalHealth}")
+}
 
+fun pathTest() {
+    val input: List<List<Spot>> = File(ClassLoader.getSystemResource("day-15-path-test.txt").file)
+            .readLines()
+            .mapIndexed { x, row ->
+                row.mapIndexed { y, char ->
+                    when (char) {
+                        '#' -> Wall(Point(x, y))
+                        '.' -> Floor(Point(x, y))
+                        'E' -> Floor(Point(x, y), Elf(Point(x, y)))
+                        'G' -> Floor(Point(x, y), Goblin(Point(x, y)))
+                        else -> throw IllegalArgumentException("invalid input, unknown char $char at $x,$y")
+                    }
+                }
+            }
 
+    val creatures = input
+            .flatMap { row -> row.mapNotNull { if (it is Floor) it.creature else null } }
+            .toMutableList()
 
+    val map = Map(input)
+    val game = Game(map, creatures)
 
-
+    println(Dijkstra.shortestPathInReadingOrder(Point(1,1), Point(4,7), game.map))
+//    game.print()
+//
+//    val source = game.creaturesByPositionSorted().iterator().next().key!!
+//    val targets = game.adjacentSpots(Elf::class).map { it.pos }
+//    println("source $source")
+//    println("targets $targets")
+//    val chosenPath = Dijkstra.getPathByClosestTargetInReadingOrder(source, targets, game.map)
+//    println(chosenPath)
 }
