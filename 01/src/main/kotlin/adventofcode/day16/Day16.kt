@@ -21,7 +21,22 @@ data class InputFrame(val inputBefore: String, val inputOpcode: String, val inpu
     }
 }
 
-open class Instruction(val name: String, val aRegister: Boolean, val bRegister: Boolean, val op: (Int, Int) -> Int)
+open class Instruction(val name: String, val aRegister: Boolean, val bRegister: Boolean, val op: (Int, Int) -> Int) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Instruction
+
+        if (name != other.name) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return name.hashCode()
+    }
+}
 object Addr : Instruction("addr", true, true, { a, b -> a + b })
 object Addi : Instruction("addi", true, false, { a, b -> a + b })
 object Mulr : Instruction("mulr", true, true, { a, b -> a * b })
@@ -52,14 +67,24 @@ fun main(args: Array<String>) {
             .windowed(4, 4)
             .map { InputFrame.next(it) }
 
+    val OpcodeNr = 0
     val A = 1
     val B = 2
     val C = 3
 
     var instructionsMatching3orMoreOpcodes = 0
+
+    val allOpcodeNames = opcodes.map { it.name }
+
+    // init to all names, each opcode could map to any
+    val opcodeToName: MutableMap<Int, MutableSet<String>> = (0..15).map { it to allOpcodeNames.toMutableSet() }.toMap().toMutableMap()
+
+
     for (frame in input) {
         val instruction = frame.encodedOpcode()
         var outputMatches = 0
+        val opcodeNr = instruction[OpcodeNr]
+        val matchedOpcodeNames = mutableSetOf<String>()
         for (opcode in opcodes) {
             val registers = frame.before()
             val a = if (opcode.aRegister) registers[instruction[A]]!! else instruction[A]
@@ -67,12 +92,16 @@ fun main(args: Array<String>) {
             registers[instruction[C]] = opcode.op(a, b)
             if (registers == frame.after()) {
                 outputMatches++
-                println("${frame.inputOpcode} matches ${opcode.name}")
+                matchedOpcodeNames.add(opcode.name)
+//                println("${frame.inputOpcode} matches ${opcode.name}")
             }
         }
+        opcodeToName[opcodeNr]!!.retainAll(matchedOpcodeNames)
         if (outputMatches >= 3) {
             instructionsMatching3orMoreOpcodes++
         }
     }
     println("$instructionsMatching3orMoreOpcodes")
+
+    opcodeToName.forEach {key, value -> println("opcode $key -> $value")}
 }
