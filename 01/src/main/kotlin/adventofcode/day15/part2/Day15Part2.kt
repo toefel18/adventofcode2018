@@ -1,4 +1,4 @@
-package adventofcode.day15
+package adventofcode.day15.part2
 
 import java.io.File
 import java.lang.IllegalArgumentException
@@ -37,7 +37,7 @@ class Goblin(pos: Point) : Creature(pos, 'G') {
     override fun enemy(): KClass<out Creature> = Elf::class
 }
 
-class Elf(pos: Point) : Creature(pos, 'E') {
+class Elf(pos: Point, attackPower: Int = 3) : Creature(pos, 'E', attackPower) {
     override fun enemy(): KClass<out Creature> = Goblin::class
 }
 
@@ -91,6 +91,8 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
             .firstOrNull()
 
     fun enemiesAlive() = creatures.filter { !it.dead() }.map { it.logo }.containsAll(listOf('G', 'E'))
+    fun goblinsAlive() = creatures.filter { !it.dead() }.any { it.logo == 'G' }
+    fun elveDied() = creatures.filter { it.dead() }.any { it.logo == 'E' }
 
     fun tick() {
         round++
@@ -221,13 +223,53 @@ object Dijkstra {
 fun main(args: Array<String>) {
 //    playGame("day-15-test-input.txt", 28944)
 //    pathTest()
-    playGame("day-15-test-input2-37-982-36334.txt",36334)
-    playGame("day-15-test-input3-46-859-39514.txt",39514)
-    playGame("day-15-test-input4-35-793-27755.txt",27755)
-    playGame("day-15-test-input5-54-536-28944.txt",28944)
-    playGame("day-15-test-input6-20-937-18740.txt",18740)
+    playGame("day-15-test-input2-37-982-36334.txt", 36334)
+    playGame("day-15-test-input3-46-859-39514.txt", 39514)
+    playGame("day-15-test-input4-35-793-27755.txt", 27755)
+    playGame("day-15-test-input5-54-536-28944.txt", 28944)
+    playGame("day-15-test-input6-20-937-18740.txt", 18740)
     playGame("day-15-input.txt", 261855)
+
+
+    //part2
+    playGameWhereNoElvesDie("day-15-test-input1-47-590-27730.txt", 4988)
 }
+
+private fun playGameWhereNoElvesDie(resourceName: String, expectedOutcome: Int) {
+
+    while (true) {
+
+        val input: List<List<Spot>> = File(ClassLoader.getSystemResource(resourceName).file)
+                .readLines()
+                .mapIndexed { x, row ->
+                    row.mapIndexed { y, char ->
+                        when (char) {
+                            '#' -> Wall(Point(x, y))
+                            '.' -> Floor(Point(x, y))
+                            'E' -> Floor(Point(x, y), Elf(Point(x, y)))
+                            'G' -> Floor(Point(x, y), Goblin(Point(x, y)))
+                            else -> throw IllegalArgumentException("invalid input, unknown char $char at $x,$y")
+                        }
+                    }
+                }
+
+        val creatures = input
+                .flatMap { row -> row.mapNotNull { if (it is Floor) it.creature else null } }
+                .toMutableList()
+
+        val map = Map(input)
+        val game = Game(map, creatures)
+        while (game.enemiesAlive()) {
+            game.tick()
+        }
+        game.round--
+        val totalHealth = creatures.filter { !it.dead() }.map { it.health }.sum()
+        val score = totalHealth * game.round
+        game.print()
+        println("$resourceName score = $score  (succeeded = ${score == expectedOutcome})   rounds=${game.round} totalHealth=${totalHealth}")
+    }
+}
+
 
 private fun playGame(resourceName: String, expectedOutcome: Int) {
     val input: List<List<Spot>> = File(ClassLoader.getSystemResource(resourceName).file)
