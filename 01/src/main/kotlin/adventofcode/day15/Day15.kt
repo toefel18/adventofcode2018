@@ -63,20 +63,8 @@ class Map(val spots: List<List<Spot>>) {
         return spots[newPoint.x][newPoint.y]
     }
 
-    fun print(adjacentSpots: List<Spot>, adjacentSpots1: List<Spot>) {
-        spots.forEach { row ->
-            row.forEach { spot ->
-                run {
-                    //                    if (adjacentSpots.contains(spot)) {
-//                        print("0")
-//                    } else if (adjacentSpots1.contains(spot)) {
-//                        print("X")
-//                    } else {
-                    print(spot.toString())
-//                    }
-                }
-            }; println()
-        }
+    fun print() {
+        spots.forEach { row -> row.forEach { spot -> print(spot.toString()) }; println() }
     }
 }
 
@@ -106,9 +94,7 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
 
     fun tick() {
         round++
-
         val ordered = creaturesByPositionSorted()
-
         for ((_, creature) in ordered) {
             if (creature.dead()) continue
             if (!enemiesAlive()) break
@@ -119,7 +105,7 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
                 removeIfDead(creature)
                 removeIfDead(enemyInRange)
             } else {
-                val nextPos = if (creature is Elf) calculateNextPos(creature) else calculateNextPos(creature)
+                val nextPos = calculateNextPos(creature)
                 if (nextPos != null) {
                     // do the move
                     (map.spotAt(creature.pos) as Floor).creature = null
@@ -147,22 +133,20 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
     private fun calculateNextPos(creature: Creature): Point? {
         val adjacentSpotsEnemies: List<Spot> = adjacentSpots(creature.enemy())
         val path = Dijkstra.getPathByClosestTargetInReadingOrder(creature.pos, adjacentSpotsEnemies.map { it.pos }, map)
-
-        return if (path == null) {
-            creature.pos
-        } else {
-            creature.pos + path.stepsTaken.first().offset
-        }
+        return path?.stepsTaken?.firstOrNull()
     }
 
     fun print() {
-        map.print(adjacentSpots(Goblin::class), adjacentSpots(Elf::class))
+        map.print()
         println("Round $round")
         creaturesByPositionSorted().forEach { pos, creature -> println("${creature.logo} ${creature.health.toString().padStart(3, ' ')} row=${creature.pos.x} col=${creature.pos.y} ") }
     }
 }
 
-data class Path(val finalPos: Point, val stepsTaken: List<Direction>)
+data class Path(val stepsTaken: List<Point>) {
+    val length: Int
+        get() = stepsTaken.size
+}
 
 object Dijkstra {
     fun getPathByClosestTargetInReadingOrder(start: Point, targets: List<Point>, map: Map): Path? {
@@ -170,7 +154,7 @@ object Dijkstra {
         try {
             val paths = targets
                     .mapNotNull { shortestPathInReadingOrder(start, it, map) }
-                    .sortedWith(compareBy({it.stepsTaken.size}, { it.finalPos }))
+                    .sortedWith(compareBy({ it.stepsTaken.size }, { it.stepsTaken.last() }))
 
 //        println("winner $paths")
             return paths.firstOrNull()
@@ -180,68 +164,55 @@ object Dijkstra {
     }
 
     fun shortestPathInReadingOrder(start: Point, target: Point, map: Map): Path? {
+        val visited: MutableMap<Point, Path> = mutableMapOf(start to Path(listOf()))
+        val queue = PriorityQueue<Path>(compareBy { it.length }) //val queue = PriorityQueue<Path>(compareBy { abs(target.x - it.finalPos.x ) + abs(target.y-it.finalPos.y)})
+        queue.addAll(Direction.values()
+                .map { Path(listOf(start + it.offset)) }
+                .filter { map.spotAt(it.stepsTaken.first()).available() })
 
-        // maps the visited points and what the shortestPath to that point was
-        // maps visited points to shortest distance
-        val visited = mutableMapOf(start to 0)
-        val queue = PriorityQueue<Path>(compareBy { it.stepsTaken.size }) //val queue = PriorityQueue<Path>(compareBy { abs(target.x - it.finalPos.x ) + abs(target.y-it.finalPos.y)})
-        queue.addAll(Direction.values().map { Path(start + it.offset, listOf(it)) }.filter { map.spotAt(it.finalPos).available() })
-        queue.forEach { visited[it.finalPos] = 1 }
+        queue.forEach { visited[it.stepsTaken.first()] = it }
 
-        val candiateResults: MutableList<Path> = mutableListOf()
+        var shortestPathInReadingOrder: Path? = null
         while (!queue.isEmpty()) {
             val currentPath = queue.poll()
-            if (currentPath.finalPos == target) {
-                candiateResults.add(currentPath)
+            if (currentPath.stepsTaken.last() == target) {
+                if (shortestPathInReadingOrder == null) {
+                    shortestPathInReadingOrder = currentPath
+                } else if (currentPath.stepsTaken.first() < shortestPathInReadingOrder.stepsTaken.first()) {
+                    shortestPathInReadingOrder = currentPath
+                }
                 continue
             }
 
-            if (candiateResults.isNotEmpty()) {
-                if (currentPath.stepsTaken.size > candiateResults.first().stepsTaken.size) {
-                    break
-                }
+            if (shortestPathInReadingOrder != null && shortestPathInReadingOrder.stepsTaken.size < currentPath.stepsTaken.size) {
+                // current paths length is longer than shortest path, and we process them by length, so
+                break
             }
-//
-//            if (candiateResults.size > 10) {
-//                break
-//            }
 
             // calculate new directions
             val newPaths = Direction.values()
-                    // Pair because we need to carry 2 values
-                    .map { Pair(currentPath.finalPos + it.offset, it) }
-//                    .map { println(notVisitedOrSameDistance(currentPath, it.first, visited) ); it }
-//                    .filter { visited.containsKey(it.first) }
-                    .filter { notVisitedOrSameDistance(currentPath, it.first, visited) }
-                    .filter { map.spotAt(it.first).available() }
-                    .map { Path(it.first, currentPath.stepsTaken + it.second) }
+                    .map { currentPath.stepsTaken.last() + it.offset }
+                    .filter { notVisitedOrSameDistance(it, currentPath, visited) }
+                    .filter { map.spotAt(it).available() }
+                    .map { Path(currentPath.stepsTaken + it) }
 
             // add new directions to visited with the number of steps it took.
             // all distances should be the same or smaller (due to the filter notVisitedOrSameDistance)
-            newPaths.forEach { visited[it.finalPos] = it.stepsTaken.size }
-            println("${visited.size}")
+            newPaths.forEach { visited[it.stepsTaken.last()] = it }
             queue.addAll(newPaths)
         }
 
-        val shortestPathSize = candiateResults.map { it.stepsTaken.size }.min()
-        println("$start $target ${candiateResults.size}")
-        val actualResults = candiateResults
-                .filter { it.stepsTaken.size == shortestPathSize } //select the shortest
-                .sortedBy { start + it.stepsTaken.first().offset } // sort by reading order
-        actualResults.forEach { println("   $it") }
-        println("visited ${visited.keys.size}")
-//        println("Selected-to-point ${actualResults.firstOrNull()}")
-
-        return actualResults.firstOrNull()
+        return shortestPathInReadingOrder
     }
 
-    private fun notVisitedOrSameDistance(path: Path, point: Point, visited: MutableMap<Point, Int>): Boolean {
-        val distance = visited[point]
-        if (distance == null) {
-            return true // not visited
+    private fun notVisitedOrSameDistance(point: Point, currentPath: Path, visited: MutableMap<Point, Path>): Boolean {
+        val visitedBy = visited[point]
+        val newPathLenght = currentPath.length + 1
+        return if (visitedBy == null || newPathLenght < visitedBy.length) {
+            true // not visited or shorter path (unlikely)
         } else {
-            val newPathLength = path.stepsTaken.size + 1 //+1 to reach the current point
-            return newPathLength == distance
+            // only consider next route if length is the same, and new path's first step is first in reading order
+            newPathLenght == visitedBy.length && currentPath.stepsTaken.first() < visitedBy.stepsTaken.first()
         }
     }
 }
@@ -249,13 +220,13 @@ object Dijkstra {
 
 fun main(args: Array<String>) {
 //    playGame("day-15-test-input.txt", 28944)
-    pathTest()
-//    playGame("day-15-test-input2-37-982-36334.txt",36334)
-//    playGame("day-15-test-input3-46-859-39514.txt",39514)
-//    playGame("day-15-test-input4-35-793-27755.txt",27755)
-//    playGame("day-15-test-input5-54-536-28944.txt",28944)
-//    playGame("day-15-test-input6-20-937-18740.txt",18740)
-//    playGame("day-15-input.txt",0)
+//    pathTest()
+    playGame("day-15-test-input2-37-982-36334.txt",36334)
+    playGame("day-15-test-input3-46-859-39514.txt",39514)
+    playGame("day-15-test-input4-35-793-27755.txt",27755)
+    playGame("day-15-test-input5-54-536-28944.txt",28944)
+    playGame("day-15-test-input6-20-937-18740.txt",18740)
+    playGame("day-15-input.txt", 0)
 }
 
 private fun playGame(resourceName: String, expectedOutcome: Int) {
@@ -281,12 +252,6 @@ private fun playGame(resourceName: String, expectedOutcome: Int) {
     val game = Game(map, creatures)
     while (game.enemiesAlive()) {
         game.tick()
-        game.print()
-//        println("round ${game.round}")
-//        if (game.round > 1000) {
-//            game.print()
-//            break
-//        }
     }
     game.round--
     val totalHealth = creatures.filter { !it.dead() }.map { it.health }.sum()
@@ -317,7 +282,7 @@ fun pathTest() {
     val map = Map(input)
     val game = Game(map, creatures)
 
-    println(Dijkstra.shortestPathInReadingOrder(Point(1,1), Point(4,7), game.map))
+    println(Dijkstra.shortestPathInReadingOrder(Point(1, 1), Point(4, 7), game.map))
 //    game.print()
 //
 //    val source = game.creaturesByPositionSorted().iterator().next().key!!
