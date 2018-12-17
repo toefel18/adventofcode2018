@@ -1,17 +1,19 @@
 package adventofcode.day16
 
 import java.io.File
+import javax.crypto.spec.OAEPParameterSpec
 
 data class InputFrame(val inputBefore: String, val inputOpcode: String, val inputAfter: String) {
-    fun before() : MutableMap<Int, Int> = parse(inputBefore)
-    fun encodedOpcode(): List<Int> = numberRegex.find(inputOpcode)!!.groupValues.drop(1).map { it.toInt() }
-    fun after() : MutableMap<Int, Int> = parse(inputAfter)
+    fun before(): MutableMap<Int, Int> = parse(inputBefore)
+    fun encodedOpcode(): List<Int> = inputOpcode.split(" ").map { it.toInt() }
+    fun after(): MutableMap<Int, Int> = parse(inputAfter)
 
-    private fun parse(line: String) : MutableMap<Int, Int> {
+    private fun parse(line: String): MutableMap<Int, Int> {
         return numberRegex.find(line)!!.groupValues.drop(1)
                 .mapIndexed { index, value -> index to value.toInt() }
                 .toMap().toMutableMap()
     }
+
     companion object {
         val numberRegex = ".*(\\d+).*(\\d+).*(\\d+).*(\\d+).*".toRegex()
         fun next(input: List<String>): InputFrame {
@@ -37,6 +39,7 @@ open class Instruction(val name: String, val aRegister: Boolean, val bRegister: 
         return name.hashCode()
     }
 }
+
 object Addr : Instruction("addr", true, true, { a, b -> a + b })
 object Addi : Instruction("addi", true, false, { a, b -> a + b })
 object Mulr : Instruction("mulr", true, true, { a, b -> a * b })
@@ -77,8 +80,7 @@ fun main(args: Array<String>) {
     val allOpcodeNames = opcodes.map { it.name }
 
     // init to all names, each opcode could map to any
-    val opcodeToName: MutableMap<Int, MutableSet<String>> = (0..15).map { it to allOpcodeNames.toMutableSet() }.toMap().toMutableMap()
-
+    val opcodeToMatched: MutableMap<Int, MutableSet<String>> = (0..15).map { it to allOpcodeNames.toMutableSet() }.toMap().toMutableMap()
 
     for (frame in input) {
         val instruction = frame.encodedOpcode()
@@ -93,15 +95,42 @@ fun main(args: Array<String>) {
             if (registers == frame.after()) {
                 outputMatches++
                 matchedOpcodeNames.add(opcode.name)
-//                println("${frame.inputOpcode} matches ${opcode.name}")
             }
         }
-        opcodeToName[opcodeNr]!!.retainAll(matchedOpcodeNames)
+        opcodeToMatched[opcodeNr]!!.retainAll(matchedOpcodeNames)
         if (outputMatches >= 3) {
             instructionsMatching3orMoreOpcodes++
         }
     }
     println("$instructionsMatching3orMoreOpcodes")
 
-    opcodeToName.forEach {key, value -> println("opcode $key -> $value")}
+    val opcodeNrToName = mutableMapOf<Int, String>()
+
+    while (opcodeToMatched.isNotEmpty()) {
+        val determinedInstructions = opcodeToMatched.filter { it.value.size == 1 }
+        determinedInstructions.forEach { opNr, nameSet -> opcodeNrToName[opNr] = nameSet.first() }
+        val namesToRemove = determinedInstructions.flatMap { it.value }
+        opcodeToMatched.forEach { _, v -> v.removeAll(namesToRemove) }
+        determinedInstructions.forEach { opcodeToMatched.remove(it.key) }
+    }
+
+    opcodeNrToName.forEach { println("${it.key}  ${it.value}") }
+
+    val testProgram: List<List<Int>> = File(ClassLoader.getSystemResource("day-16-input.txt").file)
+            .readLines()
+            .drop(3186)
+            .map { line -> line.split(" ").map { it.toInt() } }
+
+
+    val registers = mutableMapOf<Int, Int>(0 to 0, 1 to 0, 2 to 0, 3 to 0)
+
+    testProgram.forEach { programLine->
+        val instructionName = opcodeNrToName[programLine[OpcodeNr]]
+        val instruction = opcodes.first { it.name == instructionName }
+        val a = if (instruction.aRegister) registers[programLine[A]]!! else programLine[A]
+        val b = if (instruction.bRegister) registers[programLine[B]]!! else programLine[B]
+        registers[programLine[C]] = instruction.op(a, b)
+    }
+
+    println(registers[0])
 }
