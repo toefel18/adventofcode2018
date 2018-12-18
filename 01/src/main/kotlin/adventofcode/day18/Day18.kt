@@ -8,7 +8,12 @@ fun main(args: Array<String>) {
             .readLines()
             .map { it.toCharArray() }
 
-    var currentAcres = input
+    part1(input)
+    part2(input)
+}
+
+private fun part1(input: List<CharArray>) {
+    var currentAcres = input.map { it.copyOf() }
     println("0")
     currentAcres.map { String(it) }.forEach { println(it) }
 
@@ -36,18 +41,53 @@ fun main(args: Array<String>) {
         println("$i")
         currentAcres.map { String(it) }.forEach { println(it) }
 
-        val trees = currentAcres.sumBy{ it.count{ it == '|'} }
-        val lumberyard = currentAcres.sumBy{ it.count{ it == '#'} }
+        val trees = currentAcres.sumBy { it.count { it == '|' } }
+        val lumberyard = currentAcres.sumBy { it.count { it == '#' } }
         println("total resource value $trees * $lumberyard = ${trees * lumberyard}")
+    }
+}
 
-//        if (i % 100000 == 0) {
-//            println("${(i.toDouble() / 1000000000)* 100}% ")
-//            currentAcres.map { String(it) }.forEach { println(it) }
-//
-//            val trees = currentAcres.sumBy{ it.count{ it == '|'} }
-//            val lumberyard = currentAcres.sumBy{ it.count{ it == '#'} }
-//            println("total resource value $trees * $lumberyard = ${trees * lumberyard}")
-//        }
+
+private fun part2(input: List<CharArray>) {
+    var currentAcres = input.map { it.copyOf() }
+    println("0")
+    currentAcres.map { String(it) }.forEach { println(it) }
+    val valuesSeen = mutableSetOf<Int>()
+
+    var lastValue = 0
+    for (i in 1..1000000000) {
+        val newAcres = currentAcres.map { it.copyOf() }
+
+        for (y in currentAcres.indices) {
+            for (x in currentAcres[y].indices) {
+                val adjacent = adjacentOf(y, x, currentAcres)
+                if (currentAcres[y][x] == '.' && adjacent.count { it == '|' } >= 3) {
+                    newAcres[y][x] = '|'
+                } else if (currentAcres[y][x] == '|' && adjacent.count { it == '#' } >= 3) {
+                    newAcres[y][x] = '#'
+                } else if (currentAcres[y][x] == '#') {
+                    if (adjacent.count { it == '#' } >= 1 && adjacent.count { it == '|' } >= 1) {
+                        newAcres[y][x] = '#'
+                    } else {
+                        newAcres[y][x] = '.'
+                    }
+                }
+            }
+        }
+
+        currentAcres = newAcres
+
+        val trees = currentAcres.sumBy { it.count { it == '|' } }
+        val lumberyard = currentAcres.sumBy { it.count { it == '#' } }
+        val value = trees * lumberyard
+        val seen = valuesSeen.contains(value)
+        println("$i total resource value $trees * $lumberyard = $value   ${lastValue - value}     $seen")
+        if (i == 1000) {
+            println("Pattern repeats every 28 iterations, iteration 1000 is a multiple of 1000000000 and contains the answer, break")
+            break
+        }
+        valuesSeen.add(value)
+        lastValue = value
     }
 }
 
