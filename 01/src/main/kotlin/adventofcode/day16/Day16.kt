@@ -1,7 +1,6 @@
 package adventofcode.day16
 
 import java.io.File
-import javax.crypto.spec.OAEPParameterSpec
 
 data class InputFrame(val inputBefore: String, val inputOpcode: String, val inputAfter: String) {
     fun before(): MutableMap<Int, Int> = parse(inputBefore)
