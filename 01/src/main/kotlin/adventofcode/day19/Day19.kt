@@ -2,43 +2,7 @@ package adventofcode.day19
 
 import java.io.File
 
-
-data class InputFrame(val inputBefore: String, val inputOpcode: String, val inputAfter: String) {
-    fun before(): MutableMap<Int, Int> = parse(inputBefore)
-    fun encodedOpcode(): List<Int> = inputOpcode.split(" ").map { it.toInt() }
-    fun after(): MutableMap<Int, Int> = parse(inputAfter)
-
-    private fun parse(line: String): MutableMap<Int, Int> {
-        return numberRegex.find(line)!!.groupValues.drop(1)
-                .mapIndexed { index, value -> index to value.toInt() }
-                .toMap().toMutableMap()
-    }
-
-    companion object {
-        val numberRegex = ".*(\\d+).*(\\d+).*(\\d+).*(\\d+).*".toRegex()
-        fun next(input: List<String>): InputFrame {
-            val newFrame = InputFrame(input[0], input[1], input[2])
-            return newFrame
-        }
-    }
-}
-
-open class Instruction(val name: String, val aRegister: Boolean, val bRegister: Boolean, val op: (Int, Int) -> Int) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as Instruction
-
-        if (name != other.name) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return name.hashCode()
-    }
-}
+open class Instruction(val name: String, val aRegister: Boolean, val bRegister: Boolean, val op: (Int, Int) -> Int)
 
 object Addr : Instruction("addr", true, true, { a, b -> a + b })
 object Addi : Instruction("addi", true, false, { a, b -> a + b })
@@ -69,21 +33,21 @@ data class ProgramLine(val index: Int, val instruction: Instruction, val a: Int,
 
 fun main(args: Array<String>) {
     val input: List<String> = File(ClassLoader.getSystemResource("day-19-input.txt").file).readLines()
-    var ipRegister = input.first().split(" ")[1].toInt()
+    val ipRegister = input.first().split(" ")[1].toInt()
     val program = input.drop(1).mapIndexed { index, line ->
         val instruction = line.split(" ")
         ProgramLine(index, opcodesByName[instruction[0]]!!, instruction[1].toInt(), instruction[2].toInt(), instruction[3].toInt())
     }
 
     program.forEach { println("${it.index}, ${it.instruction.name} ${it.a} ${it.b} ${it.c}") }
+    val registers = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
+    registers[0] = 0
 
-    val registers = mutableMapOf<Int, Int>(0 to 0, 1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
-    val A = 1
-    val B = 2
-    val C = 3
+    var iter = 0
 
     // fetch decode execute loop
-    while (true){
+    while (true) {
+        println("${iter++} $registers")
         val ip = registers[ipRegister]!!
 
         if (ip < 0 || ip >= program.size) {
