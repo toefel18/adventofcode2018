@@ -78,7 +78,7 @@ class Game(val map: Map, val creatures: MutableList<Creature>, var round: Int = 
             .filter { it.available() }
 
     fun enemiesInRange(creature: Creature, creaturesByPos: SortedMap<Point, Creature>) = Direction.values()
-            .map { creature.pos + it.offset } // get points in all directions
+            .map { creature.pos + it.offset } // get points in all byName
             .mapNotNull { creaturesByPos[it] } // get all creatures at those positions
             .filter { !creature::class.isInstance(it) } //get all enemies
 
@@ -180,14 +180,14 @@ object Dijkstra {
                 break
             }
 
-            // calculate new directions
+            // calculate new byName
             val newPaths = Direction.values()
                     .map { currentPath.stepsTaken.last() + it.offset }
                     .filter { notVisitedOrSameDistance(it, currentPath, visited) }
                     .filter { map.spotAt(it).available() }
                     .map { Path(currentPath.stepsTaken + it) }
 
-            // add new directions to visited with the number of steps it took.
+            // add new byName to visited with the number of steps it took.
             // all distances should be the same or smaller (due to the filter notVisitedOrSameDistance)
             newPaths.forEach { visited[it.stepsTaken.last()] = it }
             queue.addAll(newPaths)
